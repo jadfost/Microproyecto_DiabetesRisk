@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: ../api
+    container_name: diabetesrisk-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=/app/model.pkl
+
+  dashboard:
+    build:
+      context: ../dashboard
+    container_name: diabetesrisk-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      - api

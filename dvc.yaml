@@ -1,0 +1,19 @@
+stages:
+  eda:
+    cmd: python notebooks/eda.py
+    deps:
+      - data/diabetes_binary_health_indicators_BRFSS2015.csv
+      - notebooks/eda.py
+    outs:
+      - notebooks/figs
+
+  train:
+    cmd: python src/train.py
+    deps:
+      - data/diabetes_binary_health_indicators_BRFSS2015.csv
+      - src/train.py
+    outs:
+      - src/model.pkl
+    metrics:
+      - src/metrics.json:
+          cache: false

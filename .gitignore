@@ -1,0 +1,29 @@
+# Datos (versionados con DVC, no con Git)
+data/*.csv
+data/*.csv.gz
+!data/.gitkeep
+
+# Entornos
+venv/
+env/
+env-dvc/
+__pycache__/
+*.pyc
+
+# DVC cache local
+.dvc/cache
+.dvc/tmp
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Variables de entorno / credenciales
+.env
+*.pem
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Sistema
+.DS_Store
