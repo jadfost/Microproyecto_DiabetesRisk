@@ -27,3 +27,4 @@ mlartifacts/
 
 # Sistema
 .DS_Store
+virtual_env/
