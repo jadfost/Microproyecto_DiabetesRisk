@@ -1,4 +1,5 @@
 [core]
     remote = aws-remote
 ['remote "aws-remote"']
-    url = s3://diabetesrisk-dvcstore
+    url = s3://microproyecto-diabetesrisk
+    profile = Universidad-Developer-373665157741
