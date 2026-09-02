@@ -1,23 +1,133 @@
 """
-Tablero DiabetesRisk (Semana 6+).
-Placeholder: conectar con la API real cuando esté desplegada.
+Tablero DiabetesRisk — Entrega 2.
+
+Formulario de evaluación de riesgo individual (consume el modelo empaquetado
+directamente) + panel de estadísticas descriptivas de la población, siguiendo
+la maqueta diseñada en la Entrega 1.
+
+Ejecutar:
+    streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
 """
-import os
+import joblib
+import numpy as np
+import pandas as pd
 import streamlit as st
+import matplotlib.pyplot as plt
+from pathlib import Path
 
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+st.set_page_config(page_title="DiabetesRisk", page_icon="🩺", layout="wide")
 
-st.title("DiabetesRisk — Evaluación de riesgo de diabetes")
+MODEL_PATH = Path(__file__).resolve().parent.parent / "src" / "model.pkl"
+DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "diabetes_binary_health_indicators_BRFSS2015.csv"
 
-with st.form("risk_form"):
-    age = st.number_input("Edad", 18, 100, 45)
-    bmi = st.number_input("IMC", 12.0, 60.0, 27.5)
-    high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
-    high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
-    gen_health = st.slider("Salud general (1=excelente, 5=mala)", 1, 5, 2)
-    phys_activity = st.selectbox("Actividad física semanal", ["Sí", "No"]) == "Sí"
-    diff_walk = st.selectbox("Dificultad para caminar", ["No", "Sí"]) == "Sí"
-    submitted = st.form_submit_button("Calcular riesgo")
+AGE_LABELS = {
+    1: "18-24", 2: "25-29", 3: "30-34", 4: "35-39", 5: "40-44", 6: "45-49",
+    7: "50-54", 8: "55-59", 9: "60-64", 10: "65-69", 11: "70-74", 12: "75-79", 13: "80+",
+}
+GENHLTH_LABELS = {1: "Excelente", 2: "Muy buena", 3: "Buena", 4: "Regular", 5: "Mala"}
 
-if submitted:
-    st.info("Conexión con la API pendiente (Semana 6). Placeholder de UI listo.")
+
+@st.cache_resource
+def load_model():
+    bundle = joblib.load(MODEL_PATH)
+    return bundle["model"], bundle["features"], bundle.get("model_name", "modelo")
+
+
+@st.cache_data
+def load_population_stats():
+    df = pd.read_csv(DATA_PATH)
+    return df
+
+
+model, FEATURES, model_name = load_model()
+
+st.markdown(
+    "<h2 style='margin-bottom:0;'>🩺 DiabetesRisk</h2>"
+    "<p style='color:#8C8A85;margin-top:0;'>Tamizaje temprano de riesgo de diabetes tipo 2</p>",
+    unsafe_allow_html=True,
+)
+
+col_form, col_stats = st.columns([1, 1.4], gap="large")
+
+with col_form:
+    st.subheader("Evaluación de riesgo")
+    with st.form("risk_form"):
+        age_group = st.selectbox(
+            "Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6
+        )
+        bmi = st.number_input("Índice de masa corporal (IMC)", 12.0, 60.0, 27.5, step=0.5)
+        high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
+        high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
+        gen_health = st.select_slider(
+            "Salud general percibida", options=list(GENHLTH_LABELS.keys()),
+            value=2, format_func=lambda k: GENHLTH_LABELS[k]
+        )
+        phys_activity = st.selectbox("Actividad física en el último mes", ["Sí", "No"]) == "Sí"
+        diff_walk = st.selectbox("Dificultad seria para caminar o subir escaleras", ["No", "Sí"]) == "Sí"
+        smoker = st.selectbox("¿Ha fumado al menos 100 cigarrillos en su vida?", ["No", "Sí"]) == "Sí"
+        stroke = st.selectbox("¿Ha tenido un accidente cerebrovascular?", ["No", "Sí"]) == "Sí"
+        heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
+        income = st.slider("Nivel de ingresos (1=más bajo, 8=más alto)", 1, 8, 5)
+
+        submitted = st.form_submit_button("Calcular riesgo", use_container_width=True)
+
+    if submitted:
+        row = pd.DataFrame([{
+            "HighBP": int(high_bp), "HighChol": int(high_chol), "BMI": bmi,
+            "Smoker": int(smoker), "Stroke": int(stroke),
+            "HeartDiseaseorAttack": int(heart_disease), "PhysActivity": int(phys_activity),
+            "GenHlth": gen_health, "DiffWalk": int(diff_walk), "Age": age_group, "Income": income,
+        }])[FEATURES]
+
+        proba = model.predict_proba(row)[0, 1]
+        pct = proba * 100
+
+        if pct < 20:
+            level, color = "Bajo", "#1D9E75"
+        elif pct < 45:
+            level, color = "Moderado", "#D8A400"
+        else:
+            level, color = "Alto", "#D85A30"
+
+        st.markdown(
+            f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
+            f"<span style='color:{color};font-size:13px;'>Resultado</span><br>"
+            f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level} · {pct:.1f}%</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Este resultado es una estimación de un prototipo académico, no un diagnóstico médico. "
+            "Ante un riesgo moderado o alto, se recomienda consultar a un profesional de la salud."
+        )
+
+with col_stats:
+    st.subheader("Estadísticas de la población (BRFSS 2015)")
+    try:
+        df = load_population_stats()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Registros analizados", f"{len(df):,}")
+        c2.metric("% con diabetes/prediab.", f"{df['Diabetes_binary'].mean()*100:.1f}%")
+        c3.metric("Modelo activo", model_name.replace("_", " ").title())
+
+        st.markdown("**Prevalencia de diabetes por rango de IMC**")
+        bmi_bin = pd.cut(df["BMI"], bins=[0, 18.5, 25, 30, 35, 40, 100],
+                          labels=["<18.5", "18.5-25", "25-30", "30-35", "35-40", "40+"])
+        rate = df.groupby(bmi_bin, observed=True)["Diabetes_binary"].mean() * 100
+        fig, ax = plt.subplots(figsize=(6, 2.6))
+        ax.bar(rate.index.astype(str), rate.values, color="#0C447C")
+        ax.set_ylabel("% con diabetes/prediab.")
+        ax.spines[["top", "right"]].set_visible(False)
+        st.pyplot(fig, use_container_width=True)
+
+        st.markdown("**Prevalencia de diabetes por grupo de edad**")
+        df["AgeGroup"] = df["Age"].map(AGE_LABELS)
+        rate_age = df.groupby("AgeGroup", observed=True)["Diabetes_binary"].mean().reindex(AGE_LABELS.values()) * 100
+        fig2, ax2 = plt.subplots(figsize=(6, 2.6))
+        ax2.plot(rate_age.index, rate_age.values, color="#534AB7", marker="o")
+        ax2.set_ylabel("% con diabetes/prediab.")
+        ax2.spines[["top", "right"]].set_visible(False)
+        plt.xticks(rotation=40, ha="right")
+        st.pyplot(fig2, use_container_width=True)
+    except FileNotFoundError:
+        st.info("Dataset no encontrado en esta máquina (data/*.csv). Corra `dvc pull` para traerlo.")

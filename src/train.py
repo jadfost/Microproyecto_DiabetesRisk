@@ -89,9 +89,6 @@ def run_experiment(name, model, X_train, y_train, X_test, y_test, scaler=None, u
         print("Matriz de confusión:\n", cm)
 
         return model, metrics, scaler
-
-
-def main():
     X_train, X_test, y_train, y_test = load_data()
     print(f"Train: {X_train.shape}, Test: {X_test.shape}")
     print(f"Prevalencia en train: {y_train.mean():.3f}")
@@ -104,41 +101,59 @@ def main():
     _, m1, _ = run_experiment("logreg_baseline", model1, X_train, y_train, X_test, y_test, scaler=scaler1)
     results["logreg_baseline"] = m1
 
+def main():
+    X_train, X_test, y_train, y_test = load_data()
+    print(f"Train: {X_train.shape}, Test: {X_test.shape}")
+    print(f"Prevalencia en train: {y_train.mean():.3f}")
+
+    results = {}
+    fitted_models = {}
+
+    # 1. Regresión Logística (baseline), sin balanceo
+    scaler1 = StandardScaler()
+    model1 = LogisticRegression(max_iter=1000, random_state=42)
+    fit1, m1, _ = run_experiment("logreg_baseline", model1, X_train, y_train, X_test, y_test, scaler=scaler1)
+    results["logreg_baseline"] = m1
+    fitted_models["logreg_baseline"] = fit1
+
     # 2. Regresión Logística + SMOTE (maneja el desbalance)
     scaler2 = StandardScaler()
     model2 = LogisticRegression(max_iter=1000, random_state=42)
-    _, m2, _ = run_experiment("logreg_smote", model2, X_train, y_train, X_test, y_test, scaler=scaler2, use_smote=True)
+    fit2, m2, _ = run_experiment("logreg_smote", model2, X_train, y_train, X_test, y_test, scaler=scaler2, use_smote=True)
     results["logreg_smote"] = m2
+    fitted_models["logreg_smote"] = fit2
 
     # 3. Random Forest con class_weight balanceado
     model3 = RandomForestClassifier(
         n_estimators=200, max_depth=10, class_weight="balanced", random_state=42, n_jobs=-1
     )
-    best_model, m3, best_scaler = run_experiment(
+    fit3, m3, _ = run_experiment(
         "random_forest_balanced", model3, X_train, y_train, X_test, y_test, scaler=None
     )
     results["random_forest_balanced"] = m3
+    fitted_models["random_forest_balanced"] = fit3
 
     # 4. Random Forest + SMOTE
     model4 = RandomForestClassifier(
         n_estimators=200, max_depth=10, random_state=42, n_jobs=-1
     )
-    model4_fit, m4, _ = run_experiment(
+    fit4, m4, _ = run_experiment(
         "random_forest_smote", model4, X_train, y_train, X_test, y_test, scaler=None, use_smote=True
     )
     results["random_forest_smote"] = m4
+    fitted_models["random_forest_smote"] = fit4
 
     # Selección: mejor modelo por recall (prioridad clínica: no perder casos positivos)
-    # con F1 razonable como balance.
     best_name = max(results, key=lambda k: results[k]["recall"])
+    best_model = fitted_models[best_name]
     print(f"\nMejor modelo por recall: {best_name} -> {results[best_name]}")
 
     Path("src").mkdir(exist_ok=True)
-    joblib.dump({"model": model4_fit, "features": FEATURES}, MODEL_OUT)
+    joblib.dump({"model": best_model, "features": FEATURES, "model_name": best_name}, MODEL_OUT)
     with open(METRICS_OUT, "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump({"results": results, "selected_model": best_name}, f, indent=2)
 
-    print(f"\nModelo guardado en {MODEL_OUT}")
+    print(f"\nModelo guardado en {MODEL_OUT} (modelo seleccionado: {best_name})")
     print(f"Métricas guardadas en {METRICS_OUT}")
 
 
