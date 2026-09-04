@@ -1,23 +1,26 @@
 """
-Tablero DiabetesRisk — Entrega 2.
+Tablero DiabetesRisk — Entrega 2/3.
 
-Formulario de evaluación de riesgo individual (consume el modelo empaquetado
-directamente) + panel de estadísticas descriptivas de la población, siguiendo
-la maqueta diseñada en la Entrega 1.
+Formulario de evaluación de riesgo individual (consume la API REST, que a su
+vez sirve el modelo empaquetado) + panel de estadísticas descriptivas de la
+población, siguiendo la maqueta diseñada en la Entrega 1.
+
+Variables de entorno:
+    API_URL: URL base de la API (por defecto http://localhost:8000)
 
 Ejecutar:
     streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
 """
-import joblib
-import numpy as np
+import os
 import pandas as pd
+import requests
 import streamlit as st
 import matplotlib.pyplot as plt
 from pathlib import Path
 
 st.set_page_config(page_title="DiabetesRisk", page_icon="🩺", layout="wide")
 
-MODEL_PATH = Path(__file__).resolve().parent.parent / "src" / "model.pkl"
+API_URL = os.getenv("API_URL", "http://localhost:8000")
 DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "diabetes_binary_health_indicators_BRFSS2015.csv"
 
 AGE_LABELS = {
@@ -27,10 +30,14 @@ AGE_LABELS = {
 GENHLTH_LABELS = {1: "Excelente", 2: "Muy buena", 3: "Buena", 4: "Regular", 5: "Mala"}
 
 
-@st.cache_resource
-def load_model():
-    bundle = joblib.load(MODEL_PATH)
-    return bundle["model"], bundle["features"], bundle.get("model_name", "modelo")
+@st.cache_data(ttl=30)
+def check_api_health():
+    try:
+        r = requests.get(f"{API_URL}/health", timeout=3)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
 
 
 @st.cache_data
@@ -39,18 +46,24 @@ def load_population_stats():
     return df
 
 
-model, FEATURES, model_name = load_model()
-
 st.markdown(
     "<h2 style='margin-bottom:0;'>🩺 DiabetesRisk</h2>"
     "<p style='color:#8C8A85;margin-top:0;'>Tamizaje temprano de riesgo de diabetes tipo 2</p>",
     unsafe_allow_html=True,
 )
 
+health = check_api_health()
+if health.get("status") != "ok":
+    st.error(f"No se pudo conectar con la API en {API_URL}. Detalle: {health.get('detail')}")
+    st.stop()
+
+model_name = health.get("model_name", "modelo")
+
 col_form, col_stats = st.columns([1, 1.4], gap="large")
 
 with col_form:
     st.subheader("Evaluación de riesgo")
+    st.caption(f"Conectado a la API: {API_URL}  ·  Modelo activo: {model_name.replace('_', ' ').title()}")
     with st.form("risk_form"):
         age_group = st.selectbox(
             "Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6
@@ -72,34 +85,34 @@ with col_form:
         submitted = st.form_submit_button("Calcular riesgo", use_container_width=True)
 
     if submitted:
-        row = pd.DataFrame([{
+        payload = {
             "HighBP": int(high_bp), "HighChol": int(high_chol), "BMI": bmi,
             "Smoker": int(smoker), "Stroke": int(stroke),
             "HeartDiseaseorAttack": int(heart_disease), "PhysActivity": int(phys_activity),
             "GenHlth": gen_health, "DiffWalk": int(diff_walk), "Age": age_group, "Income": income,
-        }])[FEATURES]
+        }
+        try:
+            resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
+            resp.raise_for_status()
+            result = resp.json()
+            proba = result["risk_probability"]
+            level = result["risk_level"]
+            pct = proba * 100
 
-        proba = model.predict_proba(row)[0, 1]
-        pct = proba * 100
-
-        if pct < 20:
-            level, color = "Bajo", "#1D9E75"
-        elif pct < 45:
-            level, color = "Moderado", "#D8A400"
-        else:
-            level, color = "Alto", "#D85A30"
-
-        st.markdown(
-            f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
-            f"<span style='color:{color};font-size:13px;'>Resultado</span><br>"
-            f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level} · {pct:.1f}%</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-        st.caption(
-            "Este resultado es una estimación de un prototipo académico, no un diagnóstico médico. "
-            "Ante un riesgo moderado o alto, se recomienda consultar a un profesional de la salud."
-        )
+            color = {"bajo": "#1D9E75", "moderado": "#D8A400", "alto": "#D85A30"}[level]
+            st.markdown(
+                f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
+                f"<span style='color:{color};font-size:13px;'>Resultado (vía API)</span><br>"
+                f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level.capitalize()} · {pct:.1f}%</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(
+                "Este resultado es una estimación de un prototipo académico, no un diagnóstico médico. "
+                "Ante un riesgo moderado o alto, se recomienda consultar a un profesional de la salud."
+            )
+        except Exception as e:
+            st.error(f"Error al consultar la API: {e}")
 
 with col_stats:
     st.subheader("Estadísticas de la población (BRFSS 2015)")
