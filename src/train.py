@@ -79,6 +79,8 @@ def run_experiment(name, model, X_train, y_train, X_test, y_test, scaler=None, u
         metrics, cm = evaluate(model, X_test, y_test, scaler)
 
         mlflow.log_param("model_type", type(model).__name__)
+        mlflow.log_param("features", ",".join(FEATURES))
+        mlflow.log_param("n_features", len(FEATURES))
         mlflow.log_params(model.get_params())
         mlflow.log_metrics(metrics)
         mlflow.sklearn.log_model(model, "model")
