@@ -378,6 +378,21 @@ else:
     fig.tight_layout()
     st.pyplot(fig, use_container_width=True)
 
+    st.markdown("""### Definición de hiperparámetros del modelo ganador
+            A continuación se lista una breve descripción de algunos hiperparámetros del modelo seleccionado:""")
+    st.markdown("""
+                | Parámetro | Descripción |
+                |---|---|
+                | `n_estimators` | Número de árboles. |
+                | `max_depth` | Profundidad máxima de cada árbol. |
+                | `criterion` | Métrica usada para decidir las divisiones. |
+                | `max_features` | Variables consideradas en cada división. |
+                | `min_samples_split` | Mínimo de muestras para dividir un nodo. |
+                | `min_samples_leaf` | Mínimo de muestras por hoja. |
+                | `bootstrap` | Usa muestreo con reemplazo para entrenar cada árbol. |
+                | `class_weight` | Ajusta el peso de las clases, útil ante desbalance. |
+                """)
+
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("### Importancia de variables")
@@ -406,12 +421,13 @@ else:
         st.table(pd.DataFrame(relevant.items(), columns=["Parámetro", "Valor"]))
         st.caption("Valores obtenidos en vivo desde la API (endpoint /model-info), no están escritos a mano.")
 
+    
     st.markdown("### Exploración de los datos")
     try:
         df = load_population_stats()
         corr = df.corr(numeric_only=True)["Diabetes_binary"].drop("Diabetes_binary").sort_values()
         selected_features = model_info.get("features", [])
-        fig4, ax4 = plt.subplots(figsize=(8, 5.5))
+        fig4, ax4 = plt.subplots(figsize=(15, 7.5))
         colors4 = [NAVY if (n in selected_features and v >= 0) else
                    (CORAL if (n in selected_features and v < 0) else "#C9C7C2")
                    for n, v in corr.items()]
