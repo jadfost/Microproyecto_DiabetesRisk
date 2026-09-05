@@ -106,9 +106,9 @@ model_name = health.get("model_name", "modelo")
 page = st.sidebar.radio("Menú", ["🏠 Inicio", "🔬 Detalle del modelamiento"])
 st.sidebar.markdown("---")
 st.sidebar.caption(
-    f"**API interna:** `{API_URL}` (misma instancia, no requiere salir a internet)\n\n"
+    f"**API interna:** `http://44.204.142.207:8000/` (misma instancia, no requiere salir a internet)\n\n"
     f"**Modelo activo:** {model_name.replace('_', ' ').title()}\n\n"
-    f"La API también es accesible públicamente para pruebas (ver `/docs`)."
+    f"La API también es accesible públicamente para pruebas (ver `http://44.204.142.207:8000/docs`)."
 )
 
 
