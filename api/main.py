@@ -1,7 +1,7 @@
 """
 API de inferencia DiabetesRisk — Entrega 2/3.
 
-Sirve el modelo empaquetado (src/model.pkl) a través de un endpoint REST,
+Sirve el modelo empaquetado (mlflow/model.pkl) a través de un endpoint REST,
 además de exponer información de modelamiento (métricas, matrices de
 confusión e importancia de variables) para que el tablero pueda mostrar
 detalle sin cargar el modelo directamente.
@@ -17,8 +17,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = BASE_DIR / "src" / "model.pkl"
-METRICS_PATH = BASE_DIR / "src" / "metrics.json"
+MODEL_PATH = BASE_DIR / "mlflow" / "model.pkl"
+METRICS_PATH = BASE_DIR / "mlflow" / "metrics.json"
 
 app = FastAPI(
     title="DiabetesRisk API",
@@ -33,14 +33,14 @@ def get_bundle():
     global _bundle
     if _bundle is None:
         if not MODEL_PATH.exists():
-            raise HTTPException(status_code=503, detail=f"Modelo no encontrado en {MODEL_PATH}. Corra src/train.py primero.")
+            raise HTTPException(status_code=503, detail=f"Modelo no encontrado en {MODEL_PATH}. Corra mlflow/train.py primero.")
         _bundle = joblib.load(MODEL_PATH)
     return _bundle
 
 
 def get_metrics_file():
     if not METRICS_PATH.exists():
-        raise HTTPException(status_code=503, detail=f"Métricas no encontradas en {METRICS_PATH}. Corra src/train.py primero.")
+        raise HTTPException(status_code=503, detail=f"Métricas no encontradas en {METRICS_PATH}. Corra mlflow/train.py primero.")
     with open(METRICS_PATH) as f:
         return json.load(f)
 

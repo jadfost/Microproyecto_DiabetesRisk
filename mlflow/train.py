@@ -10,7 +10,7 @@ Ejecutar con un MLflow tracking server activo (local o en la instancia EC2):
 
     mlflow server --host 0.0.0.0 --port 5000
     export MLFLOW_TRACKING_URI=http://<IP_O_LOCALHOST>:5000
-    python src/train.py
+    python mlflow/train.py
 """
 import json
 import joblib
@@ -30,8 +30,8 @@ from sklearn.metrics import (
 from imblearn.over_sampling import SMOTE
 
 DATA_PATH = Path("data/diabetes_binary_health_indicators_BRFSS2015.csv")
-MODEL_OUT = Path("src/model.pkl")
-METRICS_OUT = Path("src/metrics.json")
+MODEL_OUT = Path("mlflow/model.pkl")
+METRICS_OUT = Path("mlflow/metrics.json")
 FEATURES = [
     "HighBP", "HighChol", "BMI", "Smoker", "Stroke",
     "HeartDiseaseorAttack", "PhysActivity", "GenHlth",
@@ -140,7 +140,7 @@ def main():
     best_model = fitted_models[best_name]
     print(f"\nMejor modelo por recall: {best_name} -> {results[best_name]}")
 
-    Path("src").mkdir(exist_ok=True)
+    Path("mlflow").mkdir(exist_ok=True)
     joblib.dump({"model": best_model, "features": FEATURES, "model_name": best_name}, MODEL_OUT)
     with open(METRICS_OUT, "w") as f:
         json.dump({"results": results, "selected_model": best_name, "features": FEATURES}, f, indent=2)
