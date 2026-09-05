@@ -133,22 +133,33 @@ if page == "Inicio":
     with col_form:
         st.subheader("Evaluación de riesgo")
         st.caption("Los gráficos de la derecha se actualizan mientras ajustas los valores.")
-
-        age_group = st.selectbox(
-            "Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6
-        )
-        bmi = st.number_input("Índice de masa corporal (IMC)", 12.0, 60.0, 27.5, step=0.5)
-        high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
-        high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            age_group = st.selectbox("Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6)
+        with col_b:
+            bmi = st.number_input("Índice de masa corporal (IMC)", 12.0, 60.0, 27.5, step=0.5)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
+        with col_b:
+            high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
         gen_health = st.select_slider(
             "Salud general percibida", options=list(GENHLTH_LABELS.keys()),
             value=2, format_func=lambda k: GENHLTH_LABELS[k]
         )
-        phys_activity = st.selectbox("Actividad física en el último mes", ["Sí", "No"]) == "Sí"
-        diff_walk = st.selectbox("Dificultad seria para caminar o subir escaleras", ["No", "Sí"]) == "Sí"
-        smoker = st.selectbox("¿Ha fumado al menos 100 cigarrillos en su vida?", ["No", "Sí"]) == "Sí"
-        stroke = st.selectbox("¿Ha tenido un accidente cerebrovascular?", ["No", "Sí"]) == "Sí"
-        heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            phys_activity = st.selectbox("Actividad física en el último mes", ["Sí", "No"]) == "Sí"
+        with col_b:
+            diff_walk = st.selectbox("Dificultad seria para caminar o subir escaleras", ["No", "Sí"]) == "Sí"
+
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            smoker = st.selectbox("¿Ha fumado al menos 100 cigarrillos en su vida?", ["No", "Sí"]) == "Sí"
+        with col_b:
+            stroke = st.selectbox("¿Ha tenido un accidente cerebrovascular?", ["No", "Sí"]) == "Sí"
+        with col_c:
+            heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
         income = st.slider("Nivel de ingresos (1=más bajo, 8=más alto)", 1, 8, 5)
 
         calc = st.button("Calcular riesgo", use_container_width=True, type="primary")
@@ -222,7 +233,7 @@ if page == "Inicio":
         st.subheader("Tu perfil frente a la población (BRFSS 2015)")
         try:
             df = load_population_stats()
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3 = st.columns([1, 1, 3])
             c1.metric("Registros analizados", f"{len(df):,}")
             c2.metric("% con diabetes/prediab.", f"{df['Diabetes_binary'].mean()*100:.1f}%")
             c3.metric("Modelo activo", model_name.replace("_", " ").title())
@@ -240,7 +251,7 @@ if page == "Inicio":
                 if lbl == str(user_bin):
                     ax.annotate("Tú estás aquí", xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
                                 xytext=(0, 12), textcoords="offset points", ha="center",
-                                fontsize=9, color=CORAL, fontweight="bold")
+                                fontsize=7, color=CORAL, fontweight="bold")
             ax.set_ylabel("% con diabetes/prediab.")
             style_ax(ax)
             st.pyplot(fig, use_container_width=True)
@@ -265,7 +276,7 @@ if page == "Inicio":
             if user_age_label in rate_age.index:
                 yv = rate_age[user_age_label]
                 ax2.annotate("Tú", xy=(user_age_label, yv), xytext=(0, 10),
-                             textcoords="offset points", ha="center", fontsize=9, color=CORAL, fontweight="bold")
+                             textcoords="offset points", ha="center", fontsize=7, color=CORAL, fontweight="bold")
             ax2.set_ylabel("% con diabetes/prediab.")
             style_ax(ax2)
             plt.xticks(rotation=40, ha="right")
