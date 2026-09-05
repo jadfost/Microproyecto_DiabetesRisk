@@ -103,7 +103,7 @@ if health.get("status") != "ok":
 
 model_name = health.get("model_name", "modelo")
 
-page = st.sidebar.radio("Menú", ["🏠 Inicio", "🔬 Detalle del modelamiento"])
+page = st.sidebar.radio("Menú", ["Inicio", "Detalle del modelamiento"])
 st.sidebar.markdown("---")
 st.sidebar.caption(
     f"**API interna:** `http://44.204.142.207:8000/` (misma instancia, no requiere salir a internet)\n\n"
@@ -115,7 +115,7 @@ st.sidebar.caption(
 # ============================================================
 # PÁGINA 1: INICIO
 # ============================================================
-if page == "🏠 Inicio":
+if page == "Inicio":
     # Slot reservado arriba de todo para el resultado de "Calcular riesgo".
     # Aunque el botón vive más abajo (dentro del formulario), lo que se
     # escriba aquí dentro aparecerá en esta posición: así el resultado
@@ -245,7 +245,7 @@ if page == "🏠 Inicio":
             style_ax(ax)
             st.pyplot(fig, use_container_width=True)
             st.caption(
-                f"👆 Este gráfico agrupa a **toda la población por rango de IMC** (no por edad). "
+                f"Este gráfico agrupa a **toda la población por rango de IMC** (no por edad). "
                 f"La barra naranja **'Tú estás aquí'** marca el rango donde cae tu IMC, que ingresaste "
                 f"como **{bmi:.1f}** — por eso puede resaltar un rango distinto al de tu edad, son dos "
                 f"variables independientes."
@@ -271,7 +271,7 @@ if page == "🏠 Inicio":
             plt.xticks(rotation=40, ha="right")
             st.pyplot(fig2, use_container_width=True)
             st.caption(
-                f"👆 Este otro gráfico agrupa a la población por **grupo de edad** (no por IMC). "
+                f"Este otro gráfico agrupa a la población por **grupo de edad** (no por IMC). "
                 f"El punto naranja **'Tú'** marca tu grupo de edad, **{AGE_LABELS[age_group]}**, "
                 f"seleccionado en el formulario — independiente del gráfico de IMC de arriba."
             )
@@ -284,7 +284,7 @@ if page == "🏠 Inicio":
 # PÁGINA 2: DETALLE DEL MODELAMIENTO
 # ============================================================
 else:
-    st.subheader("🔬 Detalle del modelamiento")
+    st.subheader("Detalle del modelamiento")
     st.caption(
         "Esta página explica, de forma sencilla, cómo se construyó y evaluó el modelo que usa el tablero. "
         "Toda la información viene directamente de la API (endpoints /metrics y /model-info)."
