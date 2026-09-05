@@ -1,25 +1,29 @@
 """
 API de inferencia DiabetesRisk — Entrega 2/3.
 
-Sirve el modelo empaquetado (src/model.pkl) a través de un endpoint REST.
-El tablero (dashboard/app.py) consume esta API en vez de cargar el modelo
-directamente.
+Sirve el modelo empaquetado (src/model.pkl) a través de un endpoint REST,
+además de exponer información de modelamiento (métricas, matrices de
+confusión e importancia de variables) para que el tablero pueda mostrar
+detalle sin cargar el modelo directamente.
 
 Ejecutar:
     uvicorn api.main:app --host 0.0.0.0 --port 8000
 """
+import json
 import joblib
 import pandas as pd
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-MODEL_PATH = Path(__file__).resolve().parent.parent / "src" / "model.pkl"
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = BASE_DIR / "src" / "model.pkl"
+METRICS_PATH = BASE_DIR / "src" / "metrics.json"
 
 app = FastAPI(
     title="DiabetesRisk API",
-    description="Sirve predicciones de riesgo de diabetes/prediabetes a partir de variables demográficas y de estilo de vida.",
-    version="1.0.0",
+    description="Sirve predicciones de riesgo de diabetes/prediabetes e información de modelamiento.",
+    version="1.1.0",
 )
 
 _bundle = None
@@ -32,6 +36,13 @@ def get_bundle():
             raise HTTPException(status_code=503, detail=f"Modelo no encontrado en {MODEL_PATH}. Corra src/train.py primero.")
         _bundle = joblib.load(MODEL_PATH)
     return _bundle
+
+
+def get_metrics_file():
+    if not METRICS_PATH.exists():
+        raise HTTPException(status_code=503, detail=f"Métricas no encontradas en {METRICS_PATH}. Corra src/train.py primero.")
+    with open(METRICS_PATH) as f:
+        return json.load(f)
 
 
 class RiskInput(BaseModel):
@@ -89,3 +100,29 @@ def predict(payload: RiskInput):
         risk_level=level,
         model_name=bundle.get("model_name", "unknown"),
     )
+
+
+@app.get("/metrics")
+def metrics():
+    """Métricas y matriz de confusión de las 4 corridas, más el modelo seleccionado."""
+    return get_metrics_file()
+
+
+@app.get("/model-info")
+def model_info():
+    """Hiperparámetros e importancia de variables del modelo activo."""
+    bundle = get_bundle()
+    model, features = bundle["model"], bundle["features"]
+
+    info = {
+        "model_name": bundle.get("model_name", "unknown"),
+        "features": features,
+        "hyperparameters": {k: (v if isinstance(v, (int, float, str, bool)) or v is None else str(v))
+                             for k, v in model.get_params().items()},
+    }
+    if hasattr(model, "feature_importances_"):
+        info["feature_importances"] = dict(zip(features, model.feature_importances_.tolist()))
+    else:
+        info["feature_importances"] = None
+
+    return info

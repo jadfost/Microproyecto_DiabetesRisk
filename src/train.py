@@ -12,10 +12,8 @@ Ejecutar con un MLflow tracking server activo (local o en la instancia EC2):
     export MLFLOW_TRACKING_URI=http://<IP_O_LOCALHOST>:5000
     python src/train.py
 """
-import os
 import json
 import joblib
-import numpy as np
 import pandas as pd
 import mlflow
 import mlflow.sklearn
@@ -27,7 +25,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, confusion_matrix, classification_report,
+    roc_auc_score, confusion_matrix,
 )
 from imblearn.over_sampling import SMOTE
 
@@ -55,13 +53,15 @@ def evaluate(model, X_test, y_test, scaler=None):
     X_eval = scaler.transform(X_test) if scaler is not None else X_test
     y_pred = model.predict(X_eval)
     y_proba = model.predict_proba(X_eval)[:, 1]
-    return {
+    metrics = {
         "accuracy": accuracy_score(y_test, y_pred),
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
         "f1": f1_score(y_test, y_pred),
         "roc_auc": roc_auc_score(y_test, y_proba),
-    }, confusion_matrix(y_test, y_pred)
+    }
+    cm = confusion_matrix(y_test, y_pred)
+    return metrics, cm
 
 
 def run_experiment(name, model, X_train, y_train, X_test, y_test, scaler=None, use_smote=False):
@@ -90,18 +90,8 @@ def run_experiment(name, model, X_train, y_train, X_test, y_test, scaler=None, u
             print(f"{k}: {v:.4f}")
         print("Matriz de confusión:\n", cm)
 
-        return model, metrics, scaler
-    X_train, X_test, y_train, y_test = load_data()
-    print(f"Train: {X_train.shape}, Test: {X_test.shape}")
-    print(f"Prevalencia en train: {y_train.mean():.3f}")
+        return model, metrics, cm
 
-    results = {}
-
-    # 1. Regresión Logística (baseline), sin balanceo
-    scaler1 = StandardScaler()
-    model1 = LogisticRegression(max_iter=1000, random_state=42)
-    _, m1, _ = run_experiment("logreg_baseline", model1, X_train, y_train, X_test, y_test, scaler=scaler1)
-    results["logreg_baseline"] = m1
 
 def main():
     X_train, X_test, y_train, y_test = load_data()
@@ -114,35 +104,35 @@ def main():
     # 1. Regresión Logística (baseline), sin balanceo
     scaler1 = StandardScaler()
     model1 = LogisticRegression(max_iter=1000, random_state=42)
-    fit1, m1, _ = run_experiment("logreg_baseline", model1, X_train, y_train, X_test, y_test, scaler=scaler1)
-    results["logreg_baseline"] = m1
+    fit1, m1, cm1 = run_experiment("logreg_baseline", model1, X_train, y_train, X_test, y_test, scaler=scaler1)
+    results["logreg_baseline"] = {**m1, "confusion_matrix": cm1.tolist()}
     fitted_models["logreg_baseline"] = fit1
 
     # 2. Regresión Logística + SMOTE (maneja el desbalance)
     scaler2 = StandardScaler()
     model2 = LogisticRegression(max_iter=1000, random_state=42)
-    fit2, m2, _ = run_experiment("logreg_smote", model2, X_train, y_train, X_test, y_test, scaler=scaler2, use_smote=True)
-    results["logreg_smote"] = m2
+    fit2, m2, cm2 = run_experiment("logreg_smote", model2, X_train, y_train, X_test, y_test, scaler=scaler2, use_smote=True)
+    results["logreg_smote"] = {**m2, "confusion_matrix": cm2.tolist()}
     fitted_models["logreg_smote"] = fit2
 
     # 3. Random Forest con class_weight balanceado
     model3 = RandomForestClassifier(
         n_estimators=200, max_depth=10, class_weight="balanced", random_state=42, n_jobs=-1
     )
-    fit3, m3, _ = run_experiment(
+    fit3, m3, cm3 = run_experiment(
         "random_forest_balanced", model3, X_train, y_train, X_test, y_test, scaler=None
     )
-    results["random_forest_balanced"] = m3
+    results["random_forest_balanced"] = {**m3, "confusion_matrix": cm3.tolist()}
     fitted_models["random_forest_balanced"] = fit3
 
     # 4. Random Forest + SMOTE
     model4 = RandomForestClassifier(
         n_estimators=200, max_depth=10, random_state=42, n_jobs=-1
     )
-    fit4, m4, _ = run_experiment(
+    fit4, m4, cm4 = run_experiment(
         "random_forest_smote", model4, X_train, y_train, X_test, y_test, scaler=None, use_smote=True
     )
-    results["random_forest_smote"] = m4
+    results["random_forest_smote"] = {**m4, "confusion_matrix": cm4.tolist()}
     fitted_models["random_forest_smote"] = fit4
 
     # Selección: mejor modelo por recall (prioridad clínica: no perder casos positivos)
@@ -153,7 +143,7 @@ def main():
     Path("src").mkdir(exist_ok=True)
     joblib.dump({"model": best_model, "features": FEATURES, "model_name": best_name}, MODEL_OUT)
     with open(METRICS_OUT, "w") as f:
-        json.dump({"results": results, "selected_model": best_name}, f, indent=2)
+        json.dump({"results": results, "selected_model": best_name, "features": FEATURES}, f, indent=2)
 
     print(f"\nModelo guardado en {MODEL_OUT} (modelo seleccionado: {best_name})")
     print(f"Métricas guardadas en {METRICS_OUT}")

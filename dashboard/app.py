@@ -1,9 +1,12 @@
 """
 Tablero DiabetesRisk — Entrega 2/3.
 
-Formulario de evaluación de riesgo individual (consume la API REST, que a su
-vez sirve el modelo empaquetado) + panel de estadísticas descriptivas de la
-población, siguiendo la maqueta diseñada en la Entrega 1.
+Dos páginas:
+- Inicio: formulario de evaluación individual (vía API) + gráficos de
+  población que se actualizan dinámicamente según los parámetros ingresados.
+- Detalle del modelamiento: explicación accesible de cómo se entrenó y
+  evaluó el modelo (comparación de modelos, matriz de confusión, importancia
+  de variables), consumiendo la API.
 
 Variables de entorno:
     API_URL: URL base de la API (por defecto http://localhost:8000)
@@ -13,6 +16,7 @@ Ejecutar:
 """
 import os
 import pandas as pd
+import numpy as np
 import requests
 import streamlit as st
 import matplotlib.pyplot as plt
@@ -28,7 +32,17 @@ AGE_LABELS = {
     7: "50-54", 8: "55-59", 9: "60-64", 10: "65-69", 11: "70-74", 12: "75-79", 13: "80+",
 }
 GENHLTH_LABELS = {1: "Excelente", 2: "Muy buena", 3: "Buena", 4: "Regular", 5: "Mala"}
+BMI_BINS = [0, 18.5, 25, 30, 35, 40, 100]
+BMI_LABELS = ["<18.5", "18.5-25", "25-30", "30-35", "35-40", "40+"]
 
+NAVY = "#0C447C"
+CORAL = "#D85A30"
+TEAL = "#1D9E75"
+PURPLE = "#534AB7"
+GRAY = "#8C8A85"
+
+
+# ---------- Llamadas a la API ----------
 
 @st.cache_data(ttl=30)
 def check_api_health():
@@ -40,11 +54,41 @@ def check_api_health():
         return {"status": "error", "detail": str(e)}
 
 
+@st.cache_data(ttl=60)
+def fetch_metrics():
+    r = requests.get(f"{API_URL}/metrics", timeout=5)
+    r.raise_for_status()
+    return r.json()
+
+
+@st.cache_data(ttl=60)
+def fetch_model_info():
+    r = requests.get(f"{API_URL}/model-info", timeout=5)
+    r.raise_for_status()
+    return r.json()
+
+
 @st.cache_data
 def load_population_stats():
-    df = pd.read_csv(DATA_PATH)
-    return df
+    return pd.read_csv(DATA_PATH)
 
+
+def style_ax(ax):
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.tick_params(colors="#4a4a4a", labelsize=9)
+    ax.grid(axis="y", color="#E4E2DC", linewidth=0.8, zorder=0)
+    ax.set_axisbelow(True)
+
+
+MODEL_LABELS = {
+    "logreg_baseline": "Regresión Logística (base)",
+    "logreg_smote": "Regresión Logística + SMOTE",
+    "random_forest_balanced": "Random Forest (class_weight)",
+    "random_forest_smote": "Random Forest + SMOTE",
+}
+
+
+# ---------- Layout general ----------
 
 st.markdown(
     "<h2 style='margin-bottom:0;'>🩺 DiabetesRisk</h2>"
@@ -59,12 +103,25 @@ if health.get("status") != "ok":
 
 model_name = health.get("model_name", "modelo")
 
-col_form, col_stats = st.columns([1, 1.4], gap="large")
+page = st.sidebar.radio("Menú", ["🏠 Inicio", "🔬 Detalle del modelamiento"])
+st.sidebar.markdown("---")
+st.sidebar.caption(
+    f"**API interna:** `{API_URL}` (misma instancia, no requiere salir a internet)\n\n"
+    f"**Modelo activo:** {model_name.replace('_', ' ').title()}\n\n"
+    f"La API también es accesible públicamente para pruebas (ver `/docs`)."
+)
 
-with col_form:
-    st.subheader("Evaluación de riesgo")
-    st.caption(f"Conectado a la API: {API_URL}  ·  Modelo activo: {model_name.replace('_', ' ').title()}")
-    with st.form("risk_form"):
+
+# ============================================================
+# PÁGINA 1: INICIO
+# ============================================================
+if page == "🏠 Inicio":
+    col_form, col_stats = st.columns([1, 1.4], gap="large")
+
+    with col_form:
+        st.subheader("Evaluación de riesgo")
+        st.caption("Los gráficos de la derecha se actualizan mientras ajustas los valores.")
+
         age_group = st.selectbox(
             "Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6
         )
@@ -82,65 +139,197 @@ with col_form:
         heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
         income = st.slider("Nivel de ingresos (1=más bajo, 8=más alto)", 1, 8, 5)
 
-        submitted = st.form_submit_button("Calcular riesgo", use_container_width=True)
+        calc = st.button("Calcular riesgo", use_container_width=True, type="primary")
 
-    if submitted:
-        payload = {
-            "HighBP": int(high_bp), "HighChol": int(high_chol), "BMI": bmi,
-            "Smoker": int(smoker), "Stroke": int(stroke),
-            "HeartDiseaseorAttack": int(heart_disease), "PhysActivity": int(phys_activity),
-            "GenHlth": gen_health, "DiffWalk": int(diff_walk), "Age": age_group, "Income": income,
-        }
+        if calc:
+            payload = {
+                "HighBP": int(high_bp), "HighChol": int(high_chol), "BMI": bmi,
+                "Smoker": int(smoker), "Stroke": int(stroke),
+                "HeartDiseaseorAttack": int(heart_disease), "PhysActivity": int(phys_activity),
+                "GenHlth": gen_health, "DiffWalk": int(diff_walk), "Age": age_group, "Income": income,
+            }
+            try:
+                resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
+                resp.raise_for_status()
+                result = resp.json()
+                proba, level = result["risk_probability"], result["risk_level"]
+                pct = proba * 100
+                color = {"bajo": TEAL, "moderado": "#D8A400", "alto": CORAL}[level]
+                st.markdown(
+                    f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
+                    f"<span style='color:{color};font-size:13px;'>Resultado</span><br>"
+                    f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level.capitalize()} · {pct:.1f}%</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                st.caption(
+                    "Esta es una estimación de un prototipo académico, no un diagnóstico médico. "
+                    "Ante un riesgo moderado o alto, consulte a un profesional de la salud."
+                )
+            except Exception as e:
+                st.error(f"Error al consultar la API: {e}")
+
+    with col_stats:
+        st.subheader("Tu perfil frente a la población (BRFSS 2015)")
         try:
-            resp = requests.post(f"{API_URL}/predict", json=payload, timeout=5)
-            resp.raise_for_status()
-            result = resp.json()
-            proba = result["risk_probability"]
-            level = result["risk_level"]
-            pct = proba * 100
+            df = load_population_stats()
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Registros analizados", f"{len(df):,}")
+            c2.metric("% con diabetes/prediab.", f"{df['Diabetes_binary'].mean()*100:.1f}%")
+            c3.metric("Modelo activo", model_name.replace("_", " ").title())
 
-            color = {"bajo": "#1D9E75", "moderado": "#D8A400", "alto": "#D85A30"}[level]
-            st.markdown(
-                f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
-                f"<span style='color:{color};font-size:13px;'>Resultado (vía API)</span><br>"
-                f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level.capitalize()} · {pct:.1f}%</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # --- Gráfico dinámico 1: IMC, resalta el bin del usuario ---
+            st.markdown(f"**Prevalencia de diabetes por rango de IMC** — tu IMC: {bmi:.1f}")
+            bmi_bin_series = pd.cut(df["BMI"], bins=BMI_BINS, labels=BMI_LABELS)
+            rate = df.groupby(bmi_bin_series, observed=True)["Diabetes_binary"].mean() * 100
+            user_bin = pd.cut([bmi], bins=BMI_BINS, labels=BMI_LABELS)[0]
+
+            fig, ax = plt.subplots(figsize=(6, 2.8))
+            colors = [CORAL if lbl == str(user_bin) else NAVY for lbl in rate.index.astype(str)]
+            bars = ax.bar(rate.index.astype(str), rate.values, color=colors, zorder=3)
+            for lbl, bar in zip(rate.index.astype(str), bars):
+                if lbl == str(user_bin):
+                    ax.annotate("Tú estás aquí", xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                                xytext=(0, 12), textcoords="offset points", ha="center",
+                                fontsize=9, color=CORAL, fontweight="bold")
+            ax.set_ylabel("% con diabetes/prediab.")
+            style_ax(ax)
+            st.pyplot(fig, use_container_width=True)
+
+            # --- Gráfico dinámico 2: edad, resalta el grupo del usuario ---
+            st.markdown(f"**Prevalencia de diabetes por grupo de edad** — tu grupo: {AGE_LABELS[age_group]}")
+            df["AgeGroup"] = df["Age"].map(AGE_LABELS)
+            rate_age = df.groupby("AgeGroup", observed=True)["Diabetes_binary"].mean().reindex(AGE_LABELS.values()) * 100
+            user_age_label = AGE_LABELS[age_group]
+
+            fig2, ax2 = plt.subplots(figsize=(6, 2.8))
+            ax2.plot(rate_age.index, rate_age.values, color=PURPLE, linewidth=2, zorder=3)
+            sizes = [90 if lbl == user_age_label else 25 for lbl in rate_age.index]
+            colors2 = [CORAL if lbl == user_age_label else PURPLE for lbl in rate_age.index]
+            ax2.scatter(rate_age.index, rate_age.values, s=sizes, color=colors2, zorder=4)
+            if user_age_label in rate_age.index:
+                yv = rate_age[user_age_label]
+                ax2.annotate("Tú", xy=(user_age_label, yv), xytext=(0, 10),
+                             textcoords="offset points", ha="center", fontsize=9, color=CORAL, fontweight="bold")
+            ax2.set_ylabel("% con diabetes/prediab.")
+            style_ax(ax2)
+            plt.xticks(rotation=40, ha="right")
+            st.pyplot(fig2, use_container_width=True)
+
+        except FileNotFoundError:
+            st.info("Dataset no encontrado en esta máquina (data/*.csv). Corra `dvc pull` para traerlo.")
+
+
+# ============================================================
+# PÁGINA 2: DETALLE DEL MODELAMIENTO
+# ============================================================
+else:
+    st.subheader("🔬 Detalle del modelamiento")
+    st.caption(
+        "Esta página explica, de forma sencilla, cómo se construyó y evaluó el modelo que usa el tablero. "
+        "Toda la información viene directamente de la API (endpoints /metrics y /model-info)."
+    )
+
+    try:
+        metrics_data = fetch_metrics()
+        model_info = fetch_model_info()
+    except Exception as e:
+        st.error(f"No se pudo obtener el detalle del modelamiento desde la API: {e}")
+        st.stop()
+
+    results = metrics_data["results"]
+    selected = metrics_data["selected_model"]
+
+    with st.expander("¿Cómo se entrenó el modelo? (resumen simple)", expanded=True):
+        st.markdown(
+            "- Se probaron **4 modelos** distintos y se compararon entre sí.\n"
+            "- Solo el **13.9%** de las personas en los datos tienen diabetes o prediabetes — un dataset "
+            "desbalanceado. Si el modelo simplemente dijera \"nadie tiene diabetes\" acertaría el 86% de las veces, "
+            "¡pero no serviría de nada!\n"
+            "- Por eso se probaron dos técnicas para \"enseñarle\" al modelo a prestar más atención a los casos "
+            "positivos: **SMOTE** (crear ejemplos sintéticos de la clase minoritaria) y **class_weight** "
+            "(penalizar más los errores sobre esa clase).\n"
+            f"- El modelo ganador fue **{MODEL_LABELS.get(selected, selected)}**, elegido por tener el mejor "
+            "*recall* (mayor capacidad de detectar los casos reales de riesgo)."
+        )
+
+    st.markdown("### Comparación de los 4 modelos")
+    comp_df = pd.DataFrame(results).T[["accuracy", "precision", "recall", "f1", "roc_auc"]]
+    comp_df.index = [MODEL_LABELS.get(i, i) for i in comp_df.index]
+    st.dataframe(comp_df.style.format("{:.3f}").highlight_max(axis=0, color="#1D9E7533"), use_container_width=True)
+
+    fig, ax = plt.subplots(figsize=(8, 3.6))
+    x = np.arange(len(comp_df))
+    width = 0.2
+    metric_cols = ["accuracy", "recall", "f1", "roc_auc"]
+    colors_m = [NAVY, CORAL, TEAL, PURPLE]
+    for i, (m, c) in enumerate(zip(metric_cols, colors_m)):
+        ax.bar(x + i * width - 1.5 * width, comp_df[m].values, width, label=m, color=c, zorder=3)
+    ax.set_xticks(x)
+    ax.set_xticklabels(comp_df.index, fontsize=8.5)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=4, frameon=False, fontsize=9)
+    style_ax(ax)
+    st.pyplot(fig, use_container_width=True)
+
+    st.markdown(f"### Matriz de confusión — {MODEL_LABELS.get(selected, selected)}")
+    with st.expander("¿Qué es una matriz de confusión?"):
+        st.markdown(
+            "Compara lo que el modelo predijo contra la realidad. Nos interesa especialmente los "
+            "**falsos negativos** (personas con riesgo real que el modelo no detectó), porque en un tamizaje "
+            "de salud es más grave dejar pasar un caso real que remitir de más a alguien a un examen."
+        )
+    cm = results[selected]["confusion_matrix"]
+    cm_df = pd.DataFrame(
+        cm,
+        index=["Real: Sin diabetes", "Real: Con diabetes/prediab."],
+        columns=["Predicho: Sin diabetes", "Predicho: Con diabetes/prediab."],
+    )
+    st.dataframe(cm_df, use_container_width=True)
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("### Importancia de variables")
+        fi = model_info.get("feature_importances")
+        if fi:
+            fi_series = pd.Series(fi).sort_values()
+            fig3, ax3 = plt.subplots(figsize=(5, 4.2))
+            ax3.barh(fi_series.index, fi_series.values, color=NAVY, zorder=3)
+            style_ax(ax3)
+            ax3.set_xlabel("Importancia (Gini)")
+            st.pyplot(fig3, use_container_width=True)
             st.caption(
-                "Este resultado es una estimación de un prototipo académico, no un diagnóstico médico. "
-                "Ante un riesgo moderado o alto, se recomienda consultar a un profesional de la salud."
+                f"Para el modelo, **{fi_series.idxmax()}** es la variable que más pesa al momento de "
+                "estimar el riesgo, seguida por las siguientes en la lista."
             )
-        except Exception as e:
-            st.error(f"Error al consultar la API: {e}")
+        else:
+            st.info("Este modelo no expone importancia de variables.")
 
-with col_stats:
-    st.subheader("Estadísticas de la población (BRFSS 2015)")
+    with col_b:
+        st.markdown("### Hiperparámetros del modelo")
+        hp = model_info.get("hyperparameters", {})
+        relevant = {k: v for k, v in hp.items() if k in (
+            "n_estimators", "max_depth", "criterion", "max_features",
+            "min_samples_split", "min_samples_leaf", "bootstrap", "class_weight",
+        )}
+        st.table(pd.DataFrame(relevant.items(), columns=["Parámetro", "Valor"]))
+        st.caption("Valores obtenidos en vivo desde la API (endpoint /model-info), no están escritos a mano.")
+
+    st.markdown("### Exploración de los datos")
     try:
         df = load_population_stats()
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Registros analizados", f"{len(df):,}")
-        c2.metric("% con diabetes/prediab.", f"{df['Diabetes_binary'].mean()*100:.1f}%")
-        c3.metric("Modelo activo", model_name.replace("_", " ").title())
-
-        st.markdown("**Prevalencia de diabetes por rango de IMC**")
-        bmi_bin = pd.cut(df["BMI"], bins=[0, 18.5, 25, 30, 35, 40, 100],
-                          labels=["<18.5", "18.5-25", "25-30", "30-35", "35-40", "40+"])
-        rate = df.groupby(bmi_bin, observed=True)["Diabetes_binary"].mean() * 100
-        fig, ax = plt.subplots(figsize=(6, 2.6))
-        ax.bar(rate.index.astype(str), rate.values, color="#0C447C")
-        ax.set_ylabel("% con diabetes/prediab.")
-        ax.spines[["top", "right"]].set_visible(False)
-        st.pyplot(fig, use_container_width=True)
-
-        st.markdown("**Prevalencia de diabetes por grupo de edad**")
-        df["AgeGroup"] = df["Age"].map(AGE_LABELS)
-        rate_age = df.groupby("AgeGroup", observed=True)["Diabetes_binary"].mean().reindex(AGE_LABELS.values()) * 100
-        fig2, ax2 = plt.subplots(figsize=(6, 2.6))
-        ax2.plot(rate_age.index, rate_age.values, color="#534AB7", marker="o")
-        ax2.set_ylabel("% con diabetes/prediab.")
-        ax2.spines[["top", "right"]].set_visible(False)
-        plt.xticks(rotation=40, ha="right")
-        st.pyplot(fig2, use_container_width=True)
+        corr = df.corr(numeric_only=True)["Diabetes_binary"].drop("Diabetes_binary").sort_values()
+        selected_features = model_info.get("features", [])
+        fig4, ax4 = plt.subplots(figsize=(8, 5.5))
+        colors4 = [NAVY if (n in selected_features and v >= 0) else
+                   (CORAL if (n in selected_features and v < 0) else "#C9C7C2")
+                   for n, v in corr.items()]
+        ax4.barh(corr.index, corr.values, color=colors4, zorder=3)
+        style_ax(ax4)
+        ax4.set_xlabel("Correlación de Pearson con Diabetes_binary")
+        st.pyplot(fig4, use_container_width=True)
+        st.caption(
+            "En azul/naranja, las variables que finalmente se usaron en el modelo (mayor correlación con el "
+            "riesgo real de diabetes); en gris, las que se descartaron por aportar poca información adicional."
+        )
     except FileNotFoundError:
-        st.info("Dataset no encontrado en esta máquina (data/*.csv). Corra `dvc pull` para traerlo.")
+        st.info("Dataset no encontrado en esta máquina para calcular la exploración de datos.")
