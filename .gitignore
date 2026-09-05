@@ -27,3 +27,6 @@ mlartifacts/
 
 # Sistema
 .DS_Store
+
+# Notas personales de revisión (no forman parte del reporte entregable)
+docs/Entrega 2/observaciones_modelos_jvargas.md
