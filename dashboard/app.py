@@ -116,6 +116,18 @@ st.sidebar.caption(
 # PÁGINA 1: INICIO
 # ============================================================
 if page == "🏠 Inicio":
+    # Slot reservado arriba de todo para el resultado de "Calcular riesgo".
+    # Aunque el botón vive más abajo (dentro del formulario), lo que se
+    # escriba aquí dentro aparecerá en esta posición: así el resultado
+    # queda bien visible sin tener que hacer scroll hasta el final del form.
+    result_slot = st.container()
+
+    try:
+        _population_df_preview = load_population_stats()
+        population_rate = _population_df_preview["Diabetes_binary"].mean() * 100
+    except FileNotFoundError:
+        population_rate = None
+
     col_form, col_stats = st.columns([1, 1.4], gap="large")
 
     with col_form:
@@ -155,19 +167,56 @@ if page == "🏠 Inicio":
                 proba, level = result["risk_probability"], result["risk_level"]
                 pct = proba * 100
                 color = {"bajo": TEAL, "moderado": "#D8A400", "alto": CORAL}[level]
-                st.markdown(
-                    f"<div style='background:{color}22;border-radius:10px;padding:14px 18px;margin-top:10px;'>"
-                    f"<span style='color:{color};font-size:13px;'>Resultado</span><br>"
-                    f"<span style='color:{color};font-size:26px;font-weight:700;'>Riesgo {level.capitalize()} · {pct:.1f}%</span>"
-                    f"</div>",
-                    unsafe_allow_html=True,
-                )
-                st.caption(
-                    "Esta es una estimación de un prototipo académico, no un diagnóstico médico. "
-                    "Ante un riesgo moderado o alto, consulte a un profesional de la salud."
-                )
+                icon = {"bajo": "✅", "moderado": "⚠️", "alto": "🚨"}[level]
+                level_msg = {
+                    "bajo": "Tu perfil actual cae en el rango de riesgo más bajo estimado por el modelo.",
+                    "moderado": "Tu perfil muestra un riesgo intermedio: vale la pena prestarle atención.",
+                    "alto": "Tu perfil coincide con el patrón de mayor riesgo detectado por el modelo.",
+                }[level]
+
+                diff_txt = ""
+                if population_rate is not None:
+                    diff = pct - population_rate
+                    comp = "por encima" if diff >= 0 else "por debajo"
+                    diff_txt = (
+                        f"Esto es <b>{abs(diff):.1f} puntos {comp}</b> del promedio de la población "
+                        f"analizada ({population_rate:.1f}%)."
+                    )
+
+                with result_slot:
+                    st.markdown(
+                        f"""
+                        <div style='background:{color}18;border:1.5px solid {color};
+                                    border-radius:14px;padding:20px 26px;margin-bottom:4px;'>
+                          <div style='display:flex;align-items:center;gap:12px;'>
+                            <span style='font-size:32px;line-height:1;'>{icon}</span>
+                            <div>
+                              <div style='color:{color};font-size:13px;font-weight:700;letter-spacing:.4px;'>
+                                RESULTADO DE LA EVALUACIÓN
+                              </div>
+                              <div style='color:{color};font-size:32px;font-weight:800;line-height:1.15;'>
+                                Riesgo {level.capitalize()} · {pct:.1f}%
+                              </div>
+                            </div>
+                          </div>
+                          <div style='margin-top:14px;background:#00000030;border-radius:6px;
+                                      height:10px;overflow:hidden;'>
+                            <div style='width:{min(pct, 100):.1f}%;background:{color};height:100%;'></div>
+                          </div>
+                          <p style='margin:14px 0 0 0;color:#E4E2DC;font-size:14.5px;line-height:1.5;'>
+                            {level_msg} {diff_txt}
+                          </p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(
+                        "Esta es una estimación de un prototipo académico, no un diagnóstico médico. "
+                        "Ante un riesgo moderado o alto, consulte a un profesional de la salud."
+                    )
             except Exception as e:
-                st.error(f"Error al consultar la API: {e}")
+                with result_slot:
+                    st.error(f"Error al consultar la API: {e}")
 
     with col_stats:
         st.subheader("Tu perfil frente a la población (BRFSS 2015)")
@@ -195,6 +244,12 @@ if page == "🏠 Inicio":
             ax.set_ylabel("% con diabetes/prediab.")
             style_ax(ax)
             st.pyplot(fig, use_container_width=True)
+            st.caption(
+                f"👆 Este gráfico agrupa a **toda la población por rango de IMC** (no por edad). "
+                f"La barra naranja **'Tú estás aquí'** marca el rango donde cae tu IMC, que ingresaste "
+                f"como **{bmi:.1f}** — por eso puede resaltar un rango distinto al de tu edad, son dos "
+                f"variables independientes."
+            )
 
             # --- Gráfico dinámico 2: edad, resalta el grupo del usuario ---
             st.markdown(f"**Prevalencia de diabetes por grupo de edad** — tu grupo: {AGE_LABELS[age_group]}")
@@ -215,6 +270,11 @@ if page == "🏠 Inicio":
             style_ax(ax2)
             plt.xticks(rotation=40, ha="right")
             st.pyplot(fig2, use_container_width=True)
+            st.caption(
+                f"👆 Este otro gráfico agrupa a la población por **grupo de edad** (no por IMC). "
+                f"El punto naranja **'Tú'** marca tu grupo de edad, **{AGE_LABELS[age_group]}**, "
+                f"seleccionado en el formulario — independiente del gráfico de IMC de arriba."
+            )
 
         except FileNotFoundError:
             st.info("Dataset no encontrado en esta máquina (data/*.csv). Corra `dvc pull` para traerlo.")
