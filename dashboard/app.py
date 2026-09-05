@@ -103,7 +103,7 @@ if health.get("status") != "ok":
 
 model_name = health.get("model_name", "modelo")
 
-page = st.sidebar.radio("Menú", ["🏠 Inicio", "🔬 Detalle del modelamiento"])
+page = st.sidebar.radio("Menú", ["Inicio", "Detalle del modelamiento"])
 st.sidebar.markdown("---")
 st.sidebar.caption(
     f"**API interna:** `http://44.204.142.207:8000/` (misma instancia, no requiere salir a internet)\n\n"
@@ -115,7 +115,7 @@ st.sidebar.caption(
 # ============================================================
 # PÁGINA 1: INICIO
 # ============================================================
-if page == "🏠 Inicio":
+if page == "Inicio":
     # Slot reservado arriba de todo para el resultado de "Calcular riesgo".
     # Aunque el botón vive más abajo (dentro del formulario), lo que se
     # escriba aquí dentro aparecerá en esta posición: así el resultado
@@ -133,22 +133,33 @@ if page == "🏠 Inicio":
     with col_form:
         st.subheader("Evaluación de riesgo")
         st.caption("Los gráficos de la derecha se actualizan mientras ajustas los valores.")
-
-        age_group = st.selectbox(
-            "Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6
-        )
-        bmi = st.number_input("Índice de masa corporal (IMC)", 12.0, 60.0, 27.5, step=0.5)
-        high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
-        high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            age_group = st.selectbox("Edad", options=list(AGE_LABELS.keys()), format_func=lambda k: AGE_LABELS[k], index=6)
+        with col_b:
+            bmi = st.number_input("Índice de masa corporal (IMC)", 12.0, 60.0, 27.5, step=0.5)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            high_bp = st.selectbox("Presión arterial alta", ["No", "Sí"]) == "Sí"
+        with col_b:
+            high_chol = st.selectbox("Colesterol alto", ["No", "Sí"]) == "Sí"
         gen_health = st.select_slider(
             "Salud general percibida", options=list(GENHLTH_LABELS.keys()),
             value=2, format_func=lambda k: GENHLTH_LABELS[k]
         )
-        phys_activity = st.selectbox("Actividad física en el último mes", ["Sí", "No"]) == "Sí"
-        diff_walk = st.selectbox("Dificultad seria para caminar o subir escaleras", ["No", "Sí"]) == "Sí"
-        smoker = st.selectbox("¿Ha fumado al menos 100 cigarrillos en su vida?", ["No", "Sí"]) == "Sí"
-        stroke = st.selectbox("¿Ha tenido un accidente cerebrovascular?", ["No", "Sí"]) == "Sí"
-        heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
+        col_a, col_b = st.columns(2)
+        with col_a:
+            phys_activity = st.selectbox("Actividad física en el último mes", ["Sí", "No"]) == "Sí"
+        with col_b:
+            diff_walk = st.selectbox("Dificultad seria para caminar o subir escaleras", ["No", "Sí"]) == "Sí"
+
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            smoker = st.selectbox("¿Ha fumado al menos 100 cigarrillos en su vida?", ["No", "Sí"]) == "Sí"
+        with col_b:
+            stroke = st.selectbox("¿Ha tenido un accidente cerebrovascular?", ["No", "Sí"]) == "Sí"
+        with col_c:
+            heart_disease = st.selectbox("¿Enfermedad coronaria o infarto previo?", ["No", "Sí"]) == "Sí"
         income = st.slider("Nivel de ingresos (1=más bajo, 8=más alto)", 1, 8, 5)
 
         calc = st.button("Calcular riesgo", use_container_width=True, type="primary")
@@ -222,7 +233,7 @@ if page == "🏠 Inicio":
         st.subheader("Tu perfil frente a la población (BRFSS 2015)")
         try:
             df = load_population_stats()
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3 = st.columns([1, 1, 3])
             c1.metric("Registros analizados", f"{len(df):,}")
             c2.metric("% con diabetes/prediab.", f"{df['Diabetes_binary'].mean()*100:.1f}%")
             c3.metric("Modelo activo", model_name.replace("_", " ").title())
@@ -240,12 +251,12 @@ if page == "🏠 Inicio":
                 if lbl == str(user_bin):
                     ax.annotate("Tú estás aquí", xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
                                 xytext=(0, 12), textcoords="offset points", ha="center",
-                                fontsize=9, color=CORAL, fontweight="bold")
+                                fontsize=7, color=CORAL, fontweight="bold")
             ax.set_ylabel("% con diabetes/prediab.")
             style_ax(ax)
             st.pyplot(fig, use_container_width=True)
             st.caption(
-                f"👆 Este gráfico agrupa a **toda la población por rango de IMC** (no por edad). "
+                f"Este gráfico agrupa a **toda la población por rango de IMC** (no por edad). "
                 f"La barra naranja **'Tú estás aquí'** marca el rango donde cae tu IMC, que ingresaste "
                 f"como **{bmi:.1f}** — por eso puede resaltar un rango distinto al de tu edad, son dos "
                 f"variables independientes."
@@ -265,13 +276,13 @@ if page == "🏠 Inicio":
             if user_age_label in rate_age.index:
                 yv = rate_age[user_age_label]
                 ax2.annotate("Tú", xy=(user_age_label, yv), xytext=(0, 10),
-                             textcoords="offset points", ha="center", fontsize=9, color=CORAL, fontweight="bold")
+                             textcoords="offset points", ha="center", fontsize=7, color=CORAL, fontweight="bold")
             ax2.set_ylabel("% con diabetes/prediab.")
             style_ax(ax2)
             plt.xticks(rotation=40, ha="right")
             st.pyplot(fig2, use_container_width=True)
             st.caption(
-                f"👆 Este otro gráfico agrupa a la población por **grupo de edad** (no por IMC). "
+                f"Este otro gráfico agrupa a la población por **grupo de edad** (no por IMC). "
                 f"El punto naranja **'Tú'** marca tu grupo de edad, **{AGE_LABELS[age_group]}**, "
                 f"seleccionado en el formulario — independiente del gráfico de IMC de arriba."
             )
@@ -284,7 +295,7 @@ if page == "🏠 Inicio":
 # PÁGINA 2: DETALLE DEL MODELAMIENTO
 # ============================================================
 else:
-    st.subheader("🔬 Detalle del modelamiento")
+    st.subheader("Detalle del modelamiento")
     st.caption(
         "Esta página explica, de forma sencilla, cómo se construyó y evaluó el modelo que usa el tablero. "
         "Toda la información viene directamente de la API (endpoints /metrics y /model-info)."
@@ -300,17 +311,19 @@ else:
     results = metrics_data["results"]
     selected = metrics_data["selected_model"]
 
-    with st.expander("¿Cómo se entrenó el modelo? (resumen simple)", expanded=True):
+    with st.expander("¿Cómo se entrenó el modelo?", expanded=True):
         st.markdown(
             "- Se probaron **4 modelos** distintos y se compararon entre sí.\n"
             "- Solo el **13.9%** de las personas en los datos tienen diabetes o prediabetes — un dataset "
             "desbalanceado. Si el modelo simplemente dijera \"nadie tiene diabetes\" acertaría el 86% de las veces, "
             "¡pero no serviría de nada!\n"
-            "- Por eso se probaron dos técnicas para \"enseñarle\" al modelo a prestar más atención a los casos "
-            "positivos: **SMOTE** (crear ejemplos sintéticos de la clase minoritaria) y **class_weight** "
-            "(penalizar más los errores sobre esa clase).\n"
+            "- Por eso se probaron dos técnicas para tratar de balancear los datos o al menos \"enseñarle\" al modelo a prestar más atención a los casos "
+            "positivos: **SMOTE** que básicamente es crear ejemplos sintéticos de la clase minoritaria y **class_weight** que"
+            " es penalizar más los errores sobre esa clase.\n"
             f"- El modelo ganador fue **{MODEL_LABELS.get(selected, selected)}**, elegido por tener el mejor "
-            "*recall* (mayor capacidad de detectar los casos reales de riesgo)."
+            "*recall* (mayor capacidad de detectar los casos reales de riesgo).  Es importante en este caso tener el mejor *recall* posible"
+            " aunque eso implique que el modelo genere más falsos positivos (personas que no tienen riesgo real pero que el modelo predice como de riesgo).\n\n"
+            "A continuación se muestran los resultados de la comparación de los 4 modelos, la matriz de confusión del modelo ganador y la importancia de variables."
         )
 
     st.markdown("### Comparación de los 4 modelos")
@@ -318,7 +331,7 @@ else:
     comp_df.index = [MODEL_LABELS.get(i, i) for i in comp_df.index]
     st.dataframe(comp_df.style.format("{:.3f}").highlight_max(axis=0, color="#1D9E7533"), use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.6))
+    fig, ax = plt.subplots(figsize=(12, 3))
     x = np.arange(len(comp_df))
     width = 0.2
     metric_cols = ["accuracy", "recall", "f1", "roc_auc"]
@@ -326,10 +339,12 @@ else:
     for i, (m, c) in enumerate(zip(metric_cols, colors_m)):
         ax.bar(x + i * width - 1.5 * width, comp_df[m].values, width, label=m, color=c, zorder=3)
     ax.set_xticks(x)
-    ax.set_xticklabels(comp_df.index, fontsize=8.5)
+    ax.set_xticklabels(comp_df.index, fontsize=1)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=4, frameon=False, fontsize=9)
     style_ax(ax)
     st.pyplot(fig, use_container_width=True)
+
+    st.markdown("Como se puede observar el modelo que mejor recall tiene es el Random Forest (class_weight).")
 
     st.markdown(f"### Matriz de confusión — {MODEL_LABELS.get(selected, selected)}")
     with st.expander("¿Qué es una matriz de confusión?"):
@@ -338,13 +353,56 @@ else:
             "**falsos negativos** (personas con riesgo real que el modelo no detectó), porque en un tamizaje "
             "de salud es más grave dejar pasar un caso real que remitir de más a alguien a un examen."
         )
-    cm = results[selected]["confusion_matrix"]
-    cm_df = pd.DataFrame(
-        cm,
-        index=["Real: Sin diabetes", "Real: Con diabetes/prediab."],
-        columns=["Predicho: Sin diabetes", "Predicho: Con diabetes/prediab."],
-    )
-    st.dataframe(cm_df, use_container_width=True)
+    #cm = results[selected]["confusion_matrix"]
+    #cm_df = pd.DataFrame(
+    #    cm,
+    #    index=["Real: Sin diabetes", "Real: Con diabetes/prediab."],
+    #    columns=["Predicho: Sin diabetes", "Predicho: Con diabetes/prediab."],
+    #)
+    #st.dataframe(cm_df, use_container_width=True)
+
+    cm = np.array(results[selected]["confusion_matrix"])
+
+    labels = ["Sin diabetes", "Con diabetes/prediab."]
+
+    fig, ax = plt.subplots(figsize=(15, 3.5))
+    # Pintar matriz
+    im = ax.imshow(cm, cmap="Blues")
+    # Ejes
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Predicción")
+    ax.set_ylabel("Valor real")
+    ax.set_title("Matriz de confusión", fontweight="bold", pad=12)
+    # Mostrar valores dentro de cada celda
+    threshold = cm.max() / 2
+
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, f"{cm[i, j]:,}", ha="center", va="center", fontsize=7, fontweight="bold", color="white" if cm[i, j] > threshold else "black",)
+
+    # Colorbar
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    # Evitar cortes
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
+
+    st.markdown("""### Definición de hiperparámetros del modelo ganador
+            A continuación se lista una breve descripción de algunos hiperparámetros del modelo seleccionado:""")
+    st.markdown("""
+                | Parámetro | Descripción |
+                |---|---|
+                | `n_estimators` | Número de árboles. |
+                | `max_depth` | Profundidad máxima de cada árbol. |
+                | `criterion` | Métrica usada para decidir las divisiones. |
+                | `max_features` | Variables consideradas en cada división. |
+                | `min_samples_split` | Mínimo de muestras para dividir un nodo. |
+                | `min_samples_leaf` | Mínimo de muestras por hoja. |
+                | `bootstrap` | Usa muestreo con reemplazo para entrenar cada árbol. |
+                | `class_weight` | Ajusta el peso de las clases, útil ante desbalance. |
+                """)
 
     col_a, col_b = st.columns(2)
     with col_a:
@@ -374,12 +432,13 @@ else:
         st.table(pd.DataFrame(relevant.items(), columns=["Parámetro", "Valor"]))
         st.caption("Valores obtenidos en vivo desde la API (endpoint /model-info), no están escritos a mano.")
 
+    
     st.markdown("### Exploración de los datos")
     try:
         df = load_population_stats()
         corr = df.corr(numeric_only=True)["Diabetes_binary"].drop("Diabetes_binary").sort_values()
         selected_features = model_info.get("features", [])
-        fig4, ax4 = plt.subplots(figsize=(8, 5.5))
+        fig4, ax4 = plt.subplots(figsize=(15, 7.5))
         colors4 = [NAVY if (n in selected_features and v >= 0) else
                    (CORAL if (n in selected_features and v < 0) else "#C9C7C2")
                    for n, v in corr.items()]
