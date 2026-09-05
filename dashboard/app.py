@@ -300,17 +300,19 @@ else:
     results = metrics_data["results"]
     selected = metrics_data["selected_model"]
 
-    with st.expander("¿Cómo se entrenó el modelo? (resumen simple)", expanded=True):
+    with st.expander("¿Cómo se entrenó el modelo?", expanded=True):
         st.markdown(
             "- Se probaron **4 modelos** distintos y se compararon entre sí.\n"
             "- Solo el **13.9%** de las personas en los datos tienen diabetes o prediabetes — un dataset "
             "desbalanceado. Si el modelo simplemente dijera \"nadie tiene diabetes\" acertaría el 86% de las veces, "
             "¡pero no serviría de nada!\n"
-            "- Por eso se probaron dos técnicas para \"enseñarle\" al modelo a prestar más atención a los casos "
-            "positivos: **SMOTE** (crear ejemplos sintéticos de la clase minoritaria) y **class_weight** "
-            "(penalizar más los errores sobre esa clase).\n"
+            "- Por eso se probaron dos técnicas para tratar de balancear los datos o al menos \"enseñarle\" al modelo a prestar más atención a los casos "
+            "positivos: **SMOTE** que básicamente es crear ejemplos sintéticos de la clase minoritaria y **class_weight** que"
+            " es penalizar más los errores sobre esa clase.\n"
             f"- El modelo ganador fue **{MODEL_LABELS.get(selected, selected)}**, elegido por tener el mejor "
-            "*recall* (mayor capacidad de detectar los casos reales de riesgo)."
+            "*recall* (mayor capacidad de detectar los casos reales de riesgo).  Es importante en este caso tener el mejor *recall* posible"
+            " aunque eso implique que el modelo genere más falsos positivos (personas que no tienen riesgo real pero que el modelo predice como de riesgo).\n\n"
+            "A continuación se muestran los resultados de la comparación de los 4 modelos, la matriz de confusión del modelo ganador y la importancia de variables."
         )
 
     st.markdown("### Comparación de los 4 modelos")
@@ -318,7 +320,7 @@ else:
     comp_df.index = [MODEL_LABELS.get(i, i) for i in comp_df.index]
     st.dataframe(comp_df.style.format("{:.3f}").highlight_max(axis=0, color="#1D9E7533"), use_container_width=True)
 
-    fig, ax = plt.subplots(figsize=(8, 3.6))
+    fig, ax = plt.subplots(figsize=(12, 3))
     x = np.arange(len(comp_df))
     width = 0.2
     metric_cols = ["accuracy", "recall", "f1", "roc_auc"]
@@ -326,10 +328,12 @@ else:
     for i, (m, c) in enumerate(zip(metric_cols, colors_m)):
         ax.bar(x + i * width - 1.5 * width, comp_df[m].values, width, label=m, color=c, zorder=3)
     ax.set_xticks(x)
-    ax.set_xticklabels(comp_df.index, fontsize=8.5)
+    ax.set_xticklabels(comp_df.index, fontsize=1)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.25), ncol=4, frameon=False, fontsize=9)
     style_ax(ax)
     st.pyplot(fig, use_container_width=True)
+
+    st.markdown("Como se puede observar el modelo que mejor recall tiene es el Random Forest (class_weight).")
 
     st.markdown(f"### Matriz de confusión — {MODEL_LABELS.get(selected, selected)}")
     with st.expander("¿Qué es una matriz de confusión?"):
@@ -338,13 +342,41 @@ else:
             "**falsos negativos** (personas con riesgo real que el modelo no detectó), porque en un tamizaje "
             "de salud es más grave dejar pasar un caso real que remitir de más a alguien a un examen."
         )
-    cm = results[selected]["confusion_matrix"]
-    cm_df = pd.DataFrame(
-        cm,
-        index=["Real: Sin diabetes", "Real: Con diabetes/prediab."],
-        columns=["Predicho: Sin diabetes", "Predicho: Con diabetes/prediab."],
-    )
-    st.dataframe(cm_df, use_container_width=True)
+    #cm = results[selected]["confusion_matrix"]
+    #cm_df = pd.DataFrame(
+    #    cm,
+    #    index=["Real: Sin diabetes", "Real: Con diabetes/prediab."],
+    #    columns=["Predicho: Sin diabetes", "Predicho: Con diabetes/prediab."],
+    #)
+    #st.dataframe(cm_df, use_container_width=True)
+
+    cm = np.array(results[selected]["confusion_matrix"])
+
+    labels = ["Sin diabetes", "Con diabetes/prediab."]
+
+    fig, ax = plt.subplots(figsize=(15, 3.5))
+    # Pintar matriz
+    im = ax.imshow(cm, cmap="Blues")
+    # Ejes
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Predicción")
+    ax.set_ylabel("Valor real")
+    ax.set_title("Matriz de confusión", fontweight="bold", pad=12)
+    # Mostrar valores dentro de cada celda
+    threshold = cm.max() / 2
+
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, f"{cm[i, j]:,}", ha="center", va="center", fontsize=7, fontweight="bold", color="white" if cm[i, j] > threshold else "black",)
+
+    # Colorbar
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    # Evitar cortes
+    fig.tight_layout()
+    st.pyplot(fig, use_container_width=True)
 
     col_a, col_b = st.columns(2)
     with col_a:
