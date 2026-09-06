@@ -22,10 +22,11 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, confusion_matrix,
+    fbeta_score, roc_auc_score, average_precision_score,
+    confusion_matrix
 )
 from imblearn.over_sampling import SMOTE
 
@@ -58,7 +59,9 @@ def evaluate(model, X_test, y_test, scaler=None):
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
         "f1": f1_score(y_test, y_pred),
+        "f2": fbeta_score(y_test, y_pred, beta=2),
         "roc_auc": roc_auc_score(y_test, y_proba),
+        "pr_auc": average_precision_score(y_test, y_proba),
     }
     cm = confusion_matrix(y_test, y_pred)
     return metrics, cm
@@ -134,7 +137,32 @@ def main():
     )
     results["random_forest_smote"] = {**m4, "confusion_matrix": cm4.tolist()}
     fitted_models["random_forest_smote"] = fit4
+       # 5. Gradient Boosting + SMOTE
+    model5 = GradientBoostingClassifier(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=3,
+        random_state=42,
+    )
 
+    fit5, m5, cm5 = run_experiment(
+        "gradient_boosting_smote",
+        model5,
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        scaler=None,
+        use_smote=True,
+    )
+
+    results["gradient_boosting_smote"] = {
+        **m5,
+        "confusion_matrix": cm5.tolist(),
+    }
+
+    fitted_models["gradient_boosting_smote"] = fit5
+     ###
     # Selección: mejor modelo por recall (prioridad clínica: no perder casos positivos)
     best_name = max(results, key=lambda k: results[k]["recall"])
     best_model = fitted_models[best_name]
