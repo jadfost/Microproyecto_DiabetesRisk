@@ -85,6 +85,7 @@ MODEL_LABELS = {
     "logreg_smote": "Regresión Logística + SMOTE",
     "random_forest_balanced": "Random Forest (class_weight)",
     "random_forest_smote": "Random Forest + SMOTE",
+     "gradient_boosting_smote": "Gradient Boosting + SMOTE",
 }
 
 
@@ -313,7 +314,7 @@ else:
 
     with st.expander("¿Cómo se entrenó el modelo?", expanded=True):
         st.markdown(
-            "- Se probaron **4 modelos** distintos y se compararon entre sí.\n"
+            "- Se probaron **5 modelos** distintos y se compararon entre sí.\n"
             "- Solo el **13.9%** de las personas en los datos tienen diabetes o prediabetes — un dataset "
             "desbalanceado. Si el modelo simplemente dijera \"nadie tiene diabetes\" acertaría el 86% de las veces, "
             "¡pero no serviría de nada!\n"
@@ -326,8 +327,8 @@ else:
             "A continuación se muestran los resultados de la comparación de los 4 modelos, la matriz de confusión del modelo ganador y la importancia de variables."
         )
 
-    st.markdown("### Comparación de los 4 modelos")
-    comp_df = pd.DataFrame(results).T[["accuracy", "precision", "recall", "f1", "roc_auc"]]
+    st.markdown("### Comparación de los 5 modelos")
+    comp_df = pd.DataFrame(results).T[["accuracy", "precision", "recall", "f1", "f2" ,"roc_auc" , "pr_auc"]]
     comp_df.index = [MODEL_LABELS.get(i, i) for i in comp_df.index]
     st.dataframe(comp_df.style.format("{:.3f}").highlight_max(axis=0, color="#1D9E7533"), use_container_width=True)
 
