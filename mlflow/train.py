@@ -25,7 +25,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    roc_auc_score, confusion_matrix,
+    fbeta_score, roc_auc_score, average_precision_score,
+    confusion_matrix
 )
 from imblearn.over_sampling import SMOTE
 
@@ -58,7 +59,9 @@ def evaluate(model, X_test, y_test, scaler=None):
         "precision": precision_score(y_test, y_pred),
         "recall": recall_score(y_test, y_pred),
         "f1": f1_score(y_test, y_pred),
+        "f2": fbeta_score(y_test, y_pred, beta=2),
         "roc_auc": roc_auc_score(y_test, y_proba),
+        "pr_auc": average_precision_score(y_test, y_proba),
     }
     cm = confusion_matrix(y_test, y_pred)
     return metrics, cm
