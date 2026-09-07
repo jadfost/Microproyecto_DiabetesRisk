@@ -430,7 +430,9 @@ else:
             "n_estimators", "max_depth", "criterion", "max_features",
             "min_samples_split", "min_samples_leaf", "bootstrap", "class_weight",
         )}
-        st.table(pd.DataFrame(relevant.items(), columns=["Parámetro", "Valor"]))
+        hp_df = pd.DataFrame(relevant.items(), columns=["Parámetro", "Valor"])
+        hp_df["Valor"] = hp_df["Valor"].astype(str)
+        st.table(hp_df)
         st.caption("Valores obtenidos en vivo desde la API (endpoint /model-info), no están escritos a mano.")
 
     
