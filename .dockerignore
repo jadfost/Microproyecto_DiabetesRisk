@@ -1,0 +1,13 @@
+.git
+.dvc/cache
+.dvc/tmp
+data/*.csv
+data/*.csv.gz
+docs/
+notebooks/figs
+__pycache__/
+*.pyc
+.env
+*.pem
+mlruns/
+mlartifacts/

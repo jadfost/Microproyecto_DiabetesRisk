@@ -1,19 +1,23 @@
 stages:
-  eda:
-    cmd: python notebooks/eda.py
-    deps:
-      - data/diabetes_binary_health_indicators_BRFSS2015.csv
-      - notebooks/eda.py
-    outs:
-      - notebooks/figs
-
   train:
-    cmd: python src/train.py
+    cmd: python mlflow/train.py
     deps:
       - data/diabetes_binary_health_indicators_BRFSS2015.csv
-      - src/train.py
+      - mlflow/train.py
     outs:
-      - src/model.pkl
+      - mlflow/model.pkl
     metrics:
-      - src/metrics.json:
+      - mlflow/metrics.json:
           cache: false
+
+# Nota: la etapa "eda" se removió porque notebooks/eda.py aún no existe en el
+# repo (solo se conserva la figura notebooks/figs/balance_clases.png generada
+# manualmente). Si se recupera ese script, se puede volver a agregar así:
+#
+#   eda:
+#     cmd: python notebooks/eda.py
+#     deps:
+#       - data/diabetes_binary_health_indicators_BRFSS2015.csv
+#       - notebooks/eda.py
+#     outs:
+#       - notebooks/figs

@@ -37,7 +37,60 @@ Microproyecto_DiabetesRisk/
 
 ---
 
-## 2. Los 3 entornos virtuales (por qué existen)
+## 2. Cómo correr todo con Docker (método actual de despliegue)
+
+Los 3 componentes (MLflow, API, tablero) corren en contenedores independientes,
+orquestados con `docker compose`. Es el método recomendado — reemplaza el uso
+de los 3 entornos virtuales descrito en la sección 3, que se deja documentado
+solo como referencia histórica de cómo se corrió en la Entrega 2.
+
+**Requisito previo:** tener el dataset descargado en el host (`python3 -m dvc pull`
+desde la raíz del repo), porque el contenedor del entrenamiento y el del
+tablero lo montan como volumen de solo lectura en vez de incluirlo en la imagen.
+
+```bash
+cd ~/Microproyecto_DiabetesRisk/docker
+
+# 1. Levantar el servidor de MLflow
+docker compose up -d --build mlflow
+docker compose ps                          # confirmar que "mlflow" está healthy
+
+# 2. Entrenar los modelos (job de un solo uso; NO arranca con "up" normal)
+docker compose --profile train run --rm trainer
+# Esto registra las 5 corridas en MLflow (http://<IP-EC2>:5000) y deja
+# model.pkl + metrics.json en el volumen compartido "model-artifacts".
+
+# 3. Levantar la API y el tablero (ya con el modelo disponible)
+docker compose up -d --build api dashboard
+docker compose ps
+```
+
+URLs (reemplazando `<IP-EC2>` por la IP pública de la instancia):
+- MLflow: `http://<IP-EC2>:5000`
+- API (docs interactivas): `http://<IP-EC2>:8000/docs`
+- Tablero: `http://<IP-EC2>:8501`
+
+Para reentrenar (por ejemplo tras cambiar `mlflow/train.py`), basta con repetir
+el paso 2 y luego reiniciar la API para que tome el `model.pkl` más reciente:
+
+```bash
+docker compose --profile train run --rm trainer
+docker compose restart api
+```
+
+Para apagar todo sin perder los datos de MLflow ni el modelo entrenado:
+
+```bash
+docker compose stop
+```
+
+(usar `docker compose down` en su lugar solo si además quieren borrar los
+contenedores; los volúmenes `mlflow-data` y `model-artifacts` persisten en
+ambos casos, a menos que se agregue `-v`).
+
+---
+
+## 3. Los 3 entornos virtuales (referencia histórica — Entrega 2)
 
 MLflow, la API y el tablero necesitan versiones de librerías que **chocan entre sí** (el caso más molesto: Streamlit necesita `protobuf>=5.26`, MLflow necesita `protobuf<5`). Para no pelear con eso, cada servicio vive en su propio entorno virtual de Python. Es exactamente el mismo problema que resuelven los contenedores Docker — esto es un ensayo de esa separación mientras llegamos a esa parte del proyecto.
 
@@ -78,7 +131,7 @@ deactivate
 
 ---
 
-## 3. Cómo correr cada cosa
+## 3.1 Cómo correr cada cosa (con entornos virtuales)
 
 Cada componente necesita **su propia terminal** (o su propia sesión de EC2 Instance Connect / pestaña de tmux). Si solo tienen una terminal, usen `nohup ... &` como se muestra abajo para dejarlo corriendo en segundo plano y liberar la terminal.
 
@@ -134,7 +187,7 @@ Ver en el navegador: http://44.204.142.207:8501
 
 ---
 
-## 4. Orden de arranque resumido
+## 3.2 Orden de arranque resumido (con entornos virtuales)
 
 ```
 1. MLflow          (3.1)
@@ -147,7 +200,32 @@ Si alguno de estos ya está corriendo (por ejemplo, MLflow lo dejó corriendo ot
 
 ---
 
-## 5. Comandos útiles para diagnosticar
+## 4. Comandos útiles para diagnosticar
+
+**Con Docker (método actual):**
+
+```bash
+cd ~/Microproyecto_DiabetesRisk/docker
+
+# Ver el estado de los contenedores
+docker compose ps
+
+# Ver logs de un servicio en vivo
+docker compose logs -f api
+docker compose logs -f dashboard
+docker compose logs -f mlflow
+
+# Ver logs de la última corrida de entrenamiento
+docker compose --profile train logs trainer
+
+# Reiniciar un servicio puntual (por ejemplo tras actualizar código)
+docker compose up -d --build api
+
+# Revalidar sesión AWS si algo con S3/DVC falla por token expirado
+aws sso login --profile Universidad-Developer-373665157741
+```
+
+**Con entornos virtuales (referencia histórica):**
 
 ```bash
 # Ver qué está corriendo
@@ -160,14 +238,11 @@ cat ~/Microproyecto_DiabetesRisk/streamlit.log
 
 # Matar un proceso colgado (buscar el PID con ps aux de arriba)
 kill <PID>
-
-# Revalidar sesión AWS si algo con S3/DVC falla por token expirado
-aws sso login --profile Universidad-Developer-373665157741
 ```
 
 ---
 
-## 6. Sincronizar cambios (Git + DVC)
+## 5. Sincronizar cambios (Git + DVC)
 
 ```bash
 # Traer cambios de los demás

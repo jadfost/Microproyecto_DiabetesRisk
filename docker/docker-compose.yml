@@ -1,14 +1,71 @@
 version: "3.9"
 
+# -----------------------------------------------------------------------
+# DiabetesRisk — orquestación de los 3 componentes con Docker
+#
+# Servicios:
+#   mlflow    -> servidor de tracking de MLflow (puerto 5000)
+#   trainer   -> job de entrenamiento (perfil "train", no arranca con
+#                `docker compose up` normal; se corre manualmente una vez)
+#   api       -> FastAPI que sirve el modelo (puerto 8000)
+#   dashboard -> tablero Streamlit que consume la API (puerto 8501)
+#
+# Notas sobre los volúmenes (importante para quien revise el compose):
+#   - api/main.py calcula la ruta del modelo como BASE_DIR/mlflow/model.pkl,
+#     donde BASE_DIR es la raíz del contenedor ("/") porque main.py queda
+#     copiado en /app dentro de la imagen. Por eso el volumen compartido
+#     "model-artifacts" se monta en /mlflow (a nivel raíz) en el servicio api.
+#   - dashboard/app.py calcula la ruta del dataset como .../data/<csv>,
+#     también relativo a la raíz del contenedor. Por eso el dataset se
+#     monta en /data dentro del servicio dashboard.
+#   - El dataset (../data) se asume ya descargado en el host vía
+#     `dvc pull` antes de levantar los contenedores.
+# -----------------------------------------------------------------------
+
 services:
+
+  mlflow:
+    build:
+      context: ..
+      dockerfile: mlflow/Dockerfile
+    container_name: diabetesrisk-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/app/mlflow-data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  trainer:
+    build:
+      context: ..
+      dockerfile: mlflow/Dockerfile
+    container_name: diabetesrisk-trainer
+    profiles: ["train"]        # no arranca con `docker compose up`; se invoca a mano
+    command: ["python", "mlflow/train.py"]
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      - mlflow
+    volumes:
+      - model-artifacts:/app/mlflow   # aquí quedan model.pkl y metrics.json
+      - ../data:/app/data:ro          # dataset de solo lectura (ya descargado con dvc pull)
+
   api:
     build:
       context: ../api
     container_name: diabetesrisk-api
     ports:
       - "8000:8000"
-    environment:
-      - MODEL_PATH=/app/model.pkl
+    volumes:
+      - model-artifacts:/mlflow:ro    # lee model.pkl / metrics.json generados por trainer
+    depends_on:
+      - mlflow
+    restart: unless-stopped
 
   dashboard:
     build:
@@ -18,5 +75,12 @@ services:
       - "8501:8501"
     environment:
       - API_URL=http://api:8000
+    volumes:
+      - ../data:/data:ro               # para las gráficas de estadísticas poblacionales
     depends_on:
       - api
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:       # base de datos y artefactos del tracking server
+  model-artifacts:   # model.pkl + metrics.json, compartido entre trainer y api
