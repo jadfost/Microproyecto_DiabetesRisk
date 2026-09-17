@@ -5,10 +5,10 @@ demográficas y de estilo de vida, sin exámenes de laboratorio.
 
 **Equipo:** Jared Foster Orduz · Jeferson David Vargas Toca · Andres Felipe Florez Garces · Oscar Enrique Morillo
 
-**Enlaces (instancia EC2, IP pública `44.204.142.207`):**
-- Tablero (Streamlit): http://44.204.142.207:8501
-- API (docs interactivas): http://44.204.142.207:8000/docs
-- MLflow: http://44.204.142.207:5000
+**Enlaces (instancia EC2, IP pública `54.236.38.10`):**
+- Tablero (Streamlit): http://54.236.38.10:8501
+- API (docs interactivas): http://54.236.38.10:8000/docs
+- MLflow: http://54.236.38.10:5000
 - Repositorio: https://github.com/jadfost/Microproyecto_DiabetesRisk
 
 ---
@@ -144,7 +144,7 @@ nohup mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlf
 sleep 5 && cat mlflow.log   # confirmar que dice "Listening at: http://0.0.0.0:5000"
 ```
 
-Ver en el navegador: http://44.204.142.207:5000
+Ver en el navegador: http://54.236.38.10:5000
 
 ### 3.2 Entrenar los modelos (genera model.pkl y metrics.json)
 
@@ -169,7 +169,7 @@ sleep 5 && cat api.log   # confirmar "Application startup complete"
 curl http://localhost:8000/health   # debe responder {"status":"ok",...}
 ```
 
-Documentación interactiva (para probar `/predict` a mano): http://44.204.142.207:8000/docs
+Documentación interactiva (para probar `/predict` a mano): http://54.236.38.10:8000/docs
 
 ### 3.4 Tablero (Streamlit)
 
@@ -183,7 +183,7 @@ nohup streamlit run dashboard/app.py --server.address 0.0.0.0 --server.port 8501
 sleep 8 && cat streamlit.log
 ```
 
-Ver en el navegador: http://44.204.142.207:8501
+Ver en el navegador: http://54.236.38.10:8501
 
 ---
 
